@@ -1,0 +1,104 @@
+> Com um analise em appsec, analise o app.py, sugira uma melhoria no codigo para blindar possivel investidas de segurança como o mitre att&ck
+
+○ Thought for 19.6s (The provided code snippet reveals a potential SQL injection vulnerability in the login function. The query directly incorporates user-prov...)
+● Explored 1 file (persona.md)
+● Ran 2 commands (ls -la · find . -name "*.py")
+● Explored 2 files (app.py, SKILL.md) (ctrl+o to expand)
+
+▸ Thought for 12s
+
+  Excelente iniciativa trazer a perspectiva de AppSec (Segurança de Aplicações) e o framework MITRE ATT&CK para a revisão de código! Essa mentalidade defensiva é
+  fundamental para construir sistemas seguros e preparados para o mercado.
+  
+  Analisando o arquivo agent/app.py, identificamos vulnerabilidades críticas comuns na autenticação. A seguir, vemos o diagnóstico, o mapeamento de ameaças e a  
+  proposta de blindagem.                                                                                                                                         
+  ──────
+  ### 1. Diagnóstico de AppSec
+  
+  No código atual:
+  
+    query = f"SELECT * FROM usuarios WHERE username = '{usuario}' AND password = '{senha}'"
+    cursor.execute(query)
+  
+  1. Injeção de SQL (SQL Injection - CWE-89): A interpolação de strings com f-strings junta diretamente a entrada do usuário ao comando SQL. Se alguém enviar no 
+  campo de usuário algo como ' OR '1'='1' --, a lógica da consulta é alterada e o acesso é concedido sem validar senha.
+  2. Senhas em texto puro (Plaintext Storage - CWE-256 / CWE-312): Comparar a senha diretamente na query indica que o banco armazena as senhas sem
+  criptografia/hash. Em caso de vazamento, todas as contas ficam expostas.
+  3. Gerenciamento de recursos frágil: Caso ocorra algum erro durante o execute, a conexão com o banco não é fechada adequadamente.
+  ──────
+  ### 2. Mapeamento com o MITRE ATT&CK
+  
+  No framework MITRE ATT&CK, as vulnerabilidades deste código abrem caminho para as seguintes táticas e técnicas:
+  
+   Tática                                 │ Técnica MITRE ATT&CK                    │ Como se aplica a este código
+  ────────────────────────────────────────┼─────────────────────────────────────────┼────────────────────────────────────────────────────────────────────────────
+   Initial Access / Defense Evasion       │ T1190 - Exploit Public-Facing           │ O invasor explora a falta de sanitização na entrada da aplicação para
+                                          │ Application                             │ executar SQL arbitrário e burlar a barreira de autenticação.
+   Defense Evasion / Privilege Escalation │ T1078 - Valid Accounts                  │ Ao contornar a autenticação via SQLi, o adversário passa a operar no
+                                          │                                         │ sistema disfarçado de um usuário legítimo (muitas vezes com privilégios de
+                                          │                                         │ administrador).
+   Credential Access                      │ T1552 - Unsecured Credentials           │ Se o invasor extrair a base de dados via SQLi, senhas armazenadas em texto
+                                          │                                         │ puro são comprometidas imediatamente, sem custo computacional de quebra de
+                                          │                                         │ hash.
+   Credential Access                      │ T1110 - Brute Force                     │ A função aceita tentativas infinitas sem limitação de taxa (rate limiting)
+                                          │                                         │ ou atraso proposital, facilitando ataques automatizados de adivinhação de
+                                          │                                         │ senhas.
+  ──────
+  ### 3. Código Blindado (Hardening)
+  
+  Para mitigar essas ameaças, aplicamos duas boas práticas essenciais:
+    
+  1. Consultas parametrizadas (Prepared Statements): O banco de dados separa estritamente o comando SQL dos dados do usuário, neutralizando qualquer tentativa de
+  injeção.
+  2. Hash seguro com Salt: Usamos algoritmos resistentes a ataques de força bruta (como bcrypt ou hashlib.pbkdf2_hmac da biblioteca padrão do Python) para
+  verificar a senha calculada. 
+  
+  Exemplo de refatoração utilizando a biblioteca padrão do Python: 
+                                                                                                                                                                 
+    import sqlite3
+    import hmac
+    import hashlib
+  
+    def verificar_senha(senha_digitada: str, hash_armazenado: str, salt: str) -> bool:
+        """Valida a senha utilizando PBKDF2 com salt para mitigar ataques de dicionário e rainbow tables."""
+        novo_hash = hashlib.pbkdf2_hmac(
+            'sha256',
+            senha_digitada.encode('utf-8'),
+            bytes.fromhex(salt),
+            iterations=100_000
+        ).hex()
+        
+        # hmac.compare_digest evita timing attacks (análise do tempo de resposta)                                                                                
+        return hmac.compare_digest(novo_hash, hash_armazenado)
+  
+    def fazer_login(usuario: str, senha: str) -> str:
+        # Uso do gerenciador de contexto 'with' para garantir o fechamento seguro da conexão                                                                     
+        with sqlite3.connect('banco_de_dados.db') as conexao:
+            cursor = conexao.cursor()
+            
+            # 1. Consulta parametrizada com '?' neutraliza T1190 (SQL Injection)                                                                                 
+            query = "SELECT password_hash, salt FROM usuarios WHERE username = ?"                                                                                
+            cursor.execute(query, (usuario,))
+            resultado = cursor.fetchone()
+            
+            if not resultado:
+                return "Acesso Negado."
+            
+            hash_salvo, salt = resultado
+            
+            # 2. Verificação com hash mitiga T1552 e T1078
+            if verificar_senha(senha, hash_salvo, salt):
+                return "Acesso Permitido!"
+            
+            return "Acesso Negado."
+  
+  │ Tip
+  │ Em aplicações de produção, bibliotecas especializadas como bcrypt ou argon2-cffi são o padrão ouro da indústria para proteger senhas contra ataques com GPUs.
+  ──────
+  ### Conectando com o seu aprendizado na DIO
+  
+  Se quiser se aprofundar nessa área, a plataforma da DIO conta com formações e bootcamps focados em Cibersegurança, Segurança da Informação e Boas Práticas de  
+  Desenvolvimento Backend Seguro, onde você explora na prática técnicas de defesa, OWASP Top 10 e o próprio MITRE ATT&CK. 
+  
+  Ficou clara a diferença entre concatenar o texto da query e usar parâmetros com ?? Se você quiser, podemos aplicar essa melhoria diretamente no arquivo        
+  agent/app.py ou criar o script que gera os hashes de teste para o banco!

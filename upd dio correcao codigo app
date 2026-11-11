@@ -1,0 +1,42 @@
+> Atualizei o um nova versão do codigo em app_upd.py pode fazer uma nova analise e verificar se a falha do sql injection foi sanada.
+
+● Ran (find . -name "*app_upd*")
+● Explored 1 file (app_upd.py) (ctrl+o to expand)
+
+▸ Thought for 10s
+
+  Sim, a vulnerabilidade de SQL Injection foi completamente sanada! Parabéns pela implementação! 🎯                                                              
+  ──────
+  ### O que você acertou na correção de AppSec                                                                                                                   
+                                                                                                                                                                 
+  Nas linhas 8 a 13 de agent/app_upd.py:8-13:                                                                                                                    
+  
+  1. Separação de Instrução e Dados: Ao utilizar marcadores de posição (?), o interpretador do SQLite compila a estrutura do comando antes de receber os valores.
+  2. Imunidade contra injeção: Qualquer valor digitado nas variáveis usuario e senha agora é tratado estritamente como dado literal. Se alguém enviar payloads   
+  como ' OR '1'='1, o banco buscará exatamente por esse texto, sem risco de alterar a lógica da query.
+  3. Gerenciamento de Recursos: O uso de with sqlite3.connect(...) garante que a conexão seja encerrada adequadamente ao sair do bloco.
+  ──────
+  ### Um ponto de atenção no fluxo de código (Lógica / Indentação)
+  
+  Ao analisar as linhas 15 a 17 de agent/app_upd.py:15-17, repare em um pequeno detalhe de indentação:                                                           
+  
+            if resultado:
+                return "Acesso Permitido!"
+                return "Acesso Negado."
+  
+  • O return "Acesso Negado." ficou aninhado dentro do bloco if resultado:. Como ele está logo após o primeiro return, essa linha nunca é executada.             
+  • Quando o login falha (resultado é None), o if não é executado e a função termina sem retornar nada (None).
+  
+  #### Ajuste sugerido:
+  
+            if resultado:
+                return "Acesso Permitido!"
+            
+            return "Acesso Negado."
+  ──────
+  ### Próximo passo de AppSec no laboratório
+  
+  Com o SQL Injection eliminado, a próxima melhoria de segurança recomendada para esse fluxo é a proteção de credenciais (OWASP A02:2021 — Cryptographic         
+  Failures): evitar comparar senhas em texto puro no banco e passar a utilizar um algoritmo de hash (como bcrypt ou hashlib).
+  
+  Gostaria de ajustar essa indentação e já avançar para implementar o hash de senhas no laboratório?
